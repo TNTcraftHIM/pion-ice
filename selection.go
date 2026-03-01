@@ -22,6 +22,7 @@ type pairCandidateSelector interface {
 // responseSymmetric implements the transport-address check in RFC 8445 §7.2.5.2.1.
 func responseSymmetric(pendingRequest *bindingRequest, local Candidate, remoteAddr netip.AddrPort) bool {
 	return pendingRequest.networkType == local.NetworkType() &&
+		addrPortEqual(pendingRequest.source, local.addrPort()) &&
 		addrPortEqual(pendingRequest.destination, remoteAddr)
 }
 
@@ -165,21 +166,9 @@ func (a *Agent) handleBindingRequestWithCustomHandler(
 func (s *controllingSelector) HandleSuccessResponse(
 	m *stun.Message, local, remote Candidate, remoteAddr netip.AddrPort,
 ) {
-	ok, pendingRequest, rtt := s.agent.handleInboundBindingSuccess(m.TransactionID)
+	ok, pendingRequest, rtt := s.agent.handleInboundBindingResponse(m.TransactionID, local, remoteAddr)
 	if !ok {
-		s.log.Warnf("Discard success response from (%s), unknown TransactionID 0x%x", remote, m.TransactionID)
-
-		return
-	}
-
-	// Assert that NAT is not symmetric
-	// https://tools.ietf.org/html/rfc8445#section-7.2.5.2.1
-	if !responseSymmetric(pendingRequest, local, remoteAddr) {
-		s.log.Debugf(
-			"Discard message: transaction source and destination does not match expected(%s), actual(%s)",
-			pendingRequest.destination,
-			remote,
-		)
+		s.log.Warnf("Discard success response from (%s), unmatched TransactionID 0x%x", remote, m.TransactionID)
 
 		return
 	}
@@ -410,21 +399,9 @@ func (s *controlledSelector) HandleSuccessResponse( //nolint:cyclop
 	// request with an appropriate error code response (e.g., 400)
 	// [RFC5389].
 
-	ok, pendingRequest, rtt := s.agent.handleInboundBindingSuccess(m.TransactionID)
+	ok, pendingRequest, rtt := s.agent.handleInboundBindingResponse(m.TransactionID, local, remoteAddr)
 	if !ok {
-		s.log.Warnf("Discard message from (%s), unknown TransactionID 0x%x", remote, m.TransactionID)
-
-		return
-	}
-
-	// Assert that NAT is not symmetric
-	// https://tools.ietf.org/html/rfc8445#section-7.2.5.2.1
-	if !responseSymmetric(pendingRequest, local, remoteAddr) {
-		s.log.Debugf(
-			"Discard message: transaction source and destination does not match expected(%s), actual(%s)",
-			pendingRequest.destination,
-			remote,
-		)
+		s.log.Warnf("Discard message from (%s), unmatched TransactionID 0x%x", remote, m.TransactionID)
 
 		return
 	}

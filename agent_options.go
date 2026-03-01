@@ -17,6 +17,8 @@ import (
 	"golang.org/x/net/proxy"
 )
 
+const consentFreshnessTimeout = 30 * time.Second
+
 // AgentOption represents a function that can be used to configure an Agent.
 type AgentOption func(*Agent) error
 
@@ -414,7 +416,8 @@ func WithFailedTimeout(timeout time.Duration) AgentOption {
 }
 
 // WithKeepaliveInterval sets how often ICE keepalive packets are sent.
-// An interval of 0 disables keepalives.
+// An interval of 0 disables extra keepalives. Full ICE agents still send consent
+// freshness requests at the default interval (2 seconds), regardless of traffic.
 func WithKeepaliveInterval(interval time.Duration) AgentOption {
 	return func(a *Agent) error {
 		if a.constructed {
